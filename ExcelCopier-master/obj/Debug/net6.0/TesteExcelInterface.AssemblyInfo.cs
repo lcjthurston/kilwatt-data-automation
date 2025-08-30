@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("TesteExcelInterface")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+269c8c9e6d53244969971c0175915867773b258a")]
 [assembly: System.Reflection.AssemblyProductAttribute("TesteExcelInterface")]
 [assembly: System.Reflection.AssemblyTitleAttribute("TesteExcelInterface")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
