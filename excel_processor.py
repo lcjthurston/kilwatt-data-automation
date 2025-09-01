@@ -43,6 +43,41 @@ BASE_COLS = [
     '0-200,000',
 ]
 
+# --- Backup Functions ---
+
+def create_master_table_backup(master_path):
+    """Create a timestamped backup copy of the master table before modifications.
+
+    Args:
+        master_path (Path): Path to the master table file
+
+    Returns:
+        Path: Path to the backup file if successful, None if failed
+    """
+    if not master_path.exists():
+        print(f"Master table not found for backup: {master_path}")
+        return None
+
+    try:
+        # Create backup directory if it doesn't exist
+        backup_dir = master_path.parent / "backups"
+        backup_dir.mkdir(exist_ok=True)
+
+        # Generate timestamped backup filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_name = f"{master_path.stem}_backup_{timestamp}{master_path.suffix}"
+        backup_path = backup_dir / backup_name
+
+        # Copy the master table to backup location
+        shutil.copy2(master_path, backup_path)
+        print(f"Created backup: {backup_path}")
+        return backup_path
+
+    except Exception as e:
+        print(f"Failed to create backup of master table: {e}")
+        return None
+
+
 # --- SharePoint Integration Functions ---
 
 def download_sharepoint_file(file_name, download_path=None):
@@ -180,7 +215,7 @@ def download_master_table_from_sharepoint(dst_master_path=None):
     # d = "MPN_file_"+datetime.now().strftime("%b_%d_%Y-%H-%M-%S")
     # dirr = 'C:/Users/TThurston/Desktop/2023/Automation_testing/New_Files/' + d +'.xlsx'
     # ap1_data.to_excel(dirr, index=False)
-    
+
     # Try to download the master table from SharePoint
     master_file_name = os.getenv("DAILY_PRICING_FILE_NAME", "DAILY PRICING - new.xlsx")
     print(f"Master table not found locally. Attempting to download from SharePoint: {master_file_name}")
@@ -231,11 +266,12 @@ def download_and_process_sharepoint_file(file_name, dst_master_path=None, sheet_
     # Download the file from SharePoint
     downloaded_file = download_sharepoint_file(file_name)
     if downloaded_file is None:
-        print(f"Failed to download {file_name} from SharePoint")
+        print(f" line 234  Failed to download {file_name} from SharePoint")
         return 0
 
     try:
         # Process the downloaded file
+        print(downloaded_file)
         if downloaded_file.suffix.lower() == '.xlsm':
             rows_appended = process_xlsm_file(downloaded_file, dst_master_path, sheet_name_prefer)
         else:
@@ -480,6 +516,13 @@ def append_filtered_dataframe_to_master(combined_df: 'pd.DataFrame', dst: Path) 
         print("No data to append after filtering.")
         return 0
 
+    # Create backup before modifying master table
+    backup_path = create_master_table_backup(dst)
+    if backup_path is None:
+        print("Warning: Could not create backup, proceeding anyway...")
+    else:
+        print(f"Master table backed up to: {backup_path}")
+
     # Master table column structure (B-Q columns)
     MASTER_HEADERS = [
         'Price_Date','Date','Zone','REP1','Load','Term','Min_MWh','Max_MWh',
@@ -580,6 +623,13 @@ def a(master_df, dst_master_path):
         print("No data to append after filtering.")
         return 0
 
+    # Create backup before modifying master table
+    backup_path = create_master_table_backup(dst_master_path)
+    if backup_path is None:
+        print("Warning: Could not create backup, proceeding anyway...")
+    else:
+        print(f"Master table backed up to: {backup_path}")
+
     # Master table column structure (B-Q columns, excluding ID in column A)
     MASTER_HEADERS = [
         'Price_Date','Date','Zone','Load','REP1','Term','Min_MWh','Max_MWh',
@@ -591,9 +641,12 @@ def a(master_df, dst_master_path):
     ws_dst = wb_dst.active
 
     from datetime import date
-    master_df['Date'] = date.today()
-    master_df['Daily_No_Ruc'] = master_df['Daily_No_Ruc'] * 100 
-    master_df['Daily'] = master_df['Daily'] * 100 
+    # Column B (Price_Date) should be today's date - this is already set correctly in the transformation
+    # Column C (Date) should be the start date from input file - keep the original transformed value
+    # Do NOT override the Date column here as it should contain the start date from input
+
+    master_df['Daily_No_Ruc'] = master_df['Daily_No_Ruc'] * 100
+    master_df['Daily'] = master_df['Daily'] * 100
     # format Zone according to email sent last evening
     # format Load according to email sent last evening
 
@@ -635,6 +688,80 @@ def a(master_df, dst_master_path):
     wb_dst.close()
 
     return rows_appended
+
+# Backward-compatible alias for appending a master-formatted DataFrame
+# Some callers expect append_master_formatted_dataframe_to_master
+# Use existing implementation in a()
+
+def append_master_formatted_dataframe_to_master(master_df: 'pd.DataFrame', dst_master: Path) -> int:
+    return a(master_df, dst_master)
+
+
+
+
+def write_updated_master_copy(master_df: 'pd.DataFrame',
+                               master_dir: Path | str = Path('2-copy-reformat'),
+                               master_filename: str = 'Master-Table.xlsx',
+                               out_filename: str = 'master-file-updated.xlsx') -> Path:
+    """Append master_df to the Master-Table but save as a new file without modifying the original.
+
+    - Reads master from master_dir/master_filename
+    - Computes next ID as (max Column A) + 1
+    - Renumbers master_df['ID'] starting at that next ID
+    - Appends rows to a workbook copy and saves to master_dir/out_filename
+    - Returns the output path
+    """
+    from openpyxl import load_workbook
+    import pandas as pd
+
+    # Resolve paths
+    master_dir = Path(master_dir)
+    master_path = master_dir / master_filename
+    out_path = master_dir / out_filename
+
+    if not master_path.exists():
+        raise FileNotFoundError(f"Master table not found: {master_path}")
+
+    if master_df is None or master_df.empty:
+        print("No data to append: input DataFrame is empty.")
+        return out_path
+
+    # Load the master workbook (do not modify original file)
+    wb_dst = load_workbook(master_path)
+    ws_dst = wb_dst.active
+
+    # Determine write position and starting ID
+    first_blank_row = find_first_blank_row(ws_dst)
+    next_id = get_next_id(ws_dst)
+
+    # Renumber the DataFrame's ID starting at next_id
+    master_df = master_df.copy()
+    master_df['ID'] = range(next_id, next_id + len(master_df))
+
+    # Apply rows into the copy
+    rows_appended = 0
+    for r_offset, row in enumerate(master_df.itertuples(index=False), start=0):
+        dst_row = first_blank_row + r_offset
+
+        # Column A: write ID from the DataFrame
+        apply_master_formats(ws_dst, dst_row)
+        id_value = getattr(row, 'ID') if hasattr(row, 'ID') else (next_id + r_offset)
+        ws_dst.cell(row=dst_row, column=1, value=id_value)
+
+        # Columns B..Q in the MASTER_HEADERS order
+        row_dict = row._asdict()
+        for col_idx, header in enumerate(MASTER_HEADERS):
+            if header in row_dict:
+                ws_dst.cell(row=dst_row, column=col_idx + 2, value=row_dict[header])
+
+        rows_appended += 1
+
+    # Save to a new file path (do not overwrite original master)
+    wb_dst.save(out_path)
+    wb_dst.close()
+
+    print(f"Wrote updated master copy: {out_path} ({rows_appended} rows appended)")
+    return out_path
 
 
 
@@ -714,6 +841,11 @@ def hda_matrix_to_master_cols(df: 'pd.DataFrame') -> 'pd.DataFrame':
     if c_desc is None and (c_zone is None and c_lf is None):
         return out
 
+    # Get the number of rows we'll be working with
+    num_rows = len(work_df)
+    if num_rows == 0:
+        return out
+
     # Helpers to derive zone and load factor from description
     def parse_zone(text: str) -> str:
         s = str(text or '').strip()
@@ -723,6 +855,7 @@ def hda_matrix_to_master_cols(df: 'pd.DataFrame') -> 'pd.DataFrame':
         return s
 
     def parse_lf(text: str) -> str:
+        print(f"parse_lf: {text}")
         s = str(text or '').strip()
         if 'Low Load Factor' in s:
             return 'LOW'
@@ -733,16 +866,17 @@ def hda_matrix_to_master_cols(df: 'pd.DataFrame') -> 'pd.DataFrame':
         return ''
 
     # Map to master table columns
-    # ID will be handled by append function
-    out['ID'] = None  # Will be set during append
+    # Create DataFrame with proper index to avoid scalar assignment issues
+    out = pd.DataFrame(index=range(num_rows), columns=master_cols)
+    out['ID'] = None  # Will be set during append function
 
     # Price_Date should be today's date, Date should be start date
     from datetime import date as date_today
     today = date_today.today()
-    out['Price_Date'] = today
+    out['Price_Date'] = today  # Column B - today's date for all rows
 
     start_dates = pd.to_datetime(work_df[c_start], errors='coerce')
-    out['Date'] = start_dates.dt.date
+    out['Date'] = start_dates.dt.date  # Column C - start date from input
 
     # Zone and Load Factor
     if c_desc is not None:
@@ -1089,9 +1223,10 @@ def process_xlsm_file(src_xlsm: Path, dst_master: Path, sheet_name_prefer: str |
             print(f"WARNING: No suitable sheet found in {src_xlsm.name}. Available sheets: {list(all_sheets.keys())}")
             return 0
 
-        print(f"Processing sheet '{target_sheet}' from {src_xlsm.name}")
+        print(f"line 1092 Processing sheet '{target_sheet}' from {src_xlsm.name}")
 
         # Transform the data using HDA matrix transformation
+        print(f"line 1099 Processing sheet '{target_sheet}' from {src_xlsm.name}")
         transformed_df = hda_matrix_to_master_cols(all_sheets[target_sheet])
 
         if transformed_df.empty:
@@ -1211,6 +1346,13 @@ def apply_master_formats(ws_dst, row_idx: int) -> None:
 
 def append_from_template(template_path: Path, template_sheet: str, master_path: Path) -> None:
     """Append rows from a template workbook to the master by header mapping and apply number formats."""
+    # Create backup before modifying master table
+    backup_path = create_master_table_backup(master_path)
+    if backup_path is None:
+        print("Warning: Could not create backup, proceeding anyway...")
+    else:
+        print(f"Master table backed up to: {backup_path}")
+
     # Load source workbook
     wb_src = load_workbook(template_path, data_only=True, read_only=False)
     if template_sheet not in wb_src.sheetnames:

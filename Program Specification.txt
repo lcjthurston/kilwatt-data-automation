@@ -1,0 +1,43 @@
+I am an AI Prompt Engineer who will be translating input excel spreadsheets from one format to another.  Here are the requirements for the transformation.
+1.	Read in the input excel file.  We will produce a destination transformation dataframe.  The dataframe will have 17 columns.  
+2.	Column A will be a counter that increments by 1 based on the previous row’s counter value. 
+3.	 Column B will be today’s date.  
+4.	Column C will be the start date.  This value is gathered from Column J of the input file.  
+5.	Column D will be the zone – the value for zone will be the word that proceeds the word zone in column E of the input file. This value will either be NORTH, SOUTH, WEST, If Houston then COAST, otherwise NA.  The logic is as follows:
+if e2 == "North":
+    result = "NORTH"
+elif e2 == "West":
+    result = "WEST"
+elif e2 == "South":
+    result = "SOUTH"
+elif e2 == "Houston":
+    result = "COAST"
+else:
+    result = "NA"
+6.	Column E will be the load – that value will be HIGH, MED, LOW or NA.  This information will be extracted from column E of the input file. 
+7.	Column F will be the Retail Energy Provider (i.e. REP1).   For the current input file this value will always be HUDSON.   
+8.	Column G will be the Term.  This value will be extracted from Column D of the input file.  The only values we are concerned about are 12, 24, 36, 48, and 60.   
+9.	Column H will be the minimum megawatt hours (abbreviated as Min_MWh).  This value will always be hard coded at zero for the current input file. 
+10.	Column I will be the maximum megawatt hours (abbreviated as Max_MWh).  This value will always be hard coded at 1000 for the current input file. 
+11.	Column J will be the Daily_No_Ruc.  This value 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Template Formula Translations for Master Table Columns from Input File
+Column G: Term code formula translation =IF(O2=1,6,IF(O2=2,12,IF(O2=3,18,IF(O2=4,24,IF(O2=5,30,IF(O2=6,36,IF(O2=7,48,IF(O2=8,60))))))))
+Column J: Daily_No_Ruc formula translation
+=IFNA(S3*R3,0)
+In the formula above, column R is always hard coded at 10.
+The formula for column S is below and it has a custom format:
+=IF(Q3=6,E3,IF(Q3=12,F3,IF(Q3=18,G3,IF(Q3=24,H3,IF(Q3=30,I3,IF(Q3=36,J3,IF(Q3=48,K3,L3)))))))
