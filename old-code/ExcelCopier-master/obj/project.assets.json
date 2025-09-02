@@ -4888,11 +4888,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\lcthu\\Downloads\\kilwatt-data-automation\\ExcelCopier-master\\TesteExcelInterface.csproj",
+      "projectUniqueName": "C:\\Users\\lcthu\\Downloads\\kilwatt-data-automation\\old-code\\ExcelCopier-master\\TesteExcelInterface.csproj",
       "projectName": "TesteExcelInterface",
-      "projectPath": "C:\\Users\\lcthu\\Downloads\\kilwatt-data-automation\\ExcelCopier-master\\TesteExcelInterface.csproj",
+      "projectPath": "C:\\Users\\lcthu\\Downloads\\kilwatt-data-automation\\old-code\\ExcelCopier-master\\TesteExcelInterface.csproj",
       "packagesPath": "C:\\Users\\lcthu\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\lcthu\\Downloads\\kilwatt-data-automation\\ExcelCopier-master\\obj\\",
+      "outputPath": "C:\\Users\\lcthu\\Downloads\\kilwatt-data-automation\\old-code\\ExcelCopier-master\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\lcthu\\AppData\\Roaming\\NuGet\\NuGet.Config"

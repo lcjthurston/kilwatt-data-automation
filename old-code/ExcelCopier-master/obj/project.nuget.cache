@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "3L2pLKf0riU=",
+  "dgSpecHash": "n43ct5K9Glo=",
   "success": true,
-  "projectFilePath": "C:\\Users\\lcthu\\Downloads\\kilwatt-data-automation\\ExcelCopier-master\\TesteExcelInterface.csproj",
+  "projectFilePath": "C:\\Users\\lcthu\\Downloads\\kilwatt-data-automation\\old-code\\ExcelCopier-master\\TesteExcelInterface.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\lcthu\\.nuget\\packages\\closedxml\\0.95.4\\closedxml.0.95.4.nupkg.sha512",
     "C:\\Users\\lcthu\\.nuget\\packages\\documentformat.openxml\\2.7.2\\documentformat.openxml.2.7.2.nupkg.sha512",
