@@ -14,10 +14,11 @@ except Exception:
 import re
 from datetime import date as date_today
 from pathlib import Path
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Tuple
 
 import pandas as pd
-
+from tempfile import NamedTemporaryFile
+from openpyxl import load_workbook
 # Master table schema (17 columns)
 MASTER_COLS: List[str] = [
     'ID', 'Price_Date', 'Date', 'Zone', 'Load', 'REP1', 'Term', 'Min_MWh', 'Max_MWh',
@@ -92,6 +93,54 @@ def _parse_load_from_col_e(val: str) -> str:
     return 'NA'
 
 
+def _unhide_and_save_matrix_table_only(xlsx_path: Path) -> Path:
+    """Create a temporary copy of the workbook with only 'Matrix Table' visible.
+    - If the sheet is hidden, unhide it.
+    - Hide all other sheets, keeping 'Matrix Table' active.
+    Returns path to the temporary workbook copy.
+    """
+    wb = load_workbook(xlsx_path)
+    target = None
+    for ws in wb.worksheets:
+        if str(ws.title).strip().lower() == 'matrix table':
+            target = ws
+            break
+    if target is None:
+        # Try fuzzy match
+        for ws in wb.worksheets:
+            title = str(ws.title).strip().lower()
+            if 'matrix' in title and 'table' in title:
+                target = ws
+                break
+    if target is None:
+        raise ValueError("Sheet 'Matrix Table' not found in workbook")
+
+    # Unhide target, hide others
+    for ws in wb.worksheets:
+        ws.sheet_state = 'hidden' if ws is not target else 'visible'
+    wb.active = wb.sheetnames.index(target.title)
+
+    tmp_path = xlsx_path.parent / f".__matrix_only_{xlsx_path.name}"
+    wb.save(tmp_path)
+    wb.close()
+    return tmp_path
+
+
+def _read_matrix_table_only(input_path: Path) -> Dict[str, pd.DataFrame]:
+    """Return a dict with only the 'Matrix Table' sheet as DataFrame, unhidden.
+    Uses openpyxl to unhide and saves a temporary copy, then reads that sheet only.
+    """
+    tmp_copy = _unhide_and_save_matrix_table_only(input_path)
+    try:
+        # Read only the 'Matrix Table' sheet
+        return pd.read_excel(tmp_copy, sheet_name=['Matrix Table'])
+    except Exception:
+        # Fallback to fuzzy - read all and keep the one containing both 'matrix' and 'table'
+        sheets = pd.read_excel(tmp_copy, sheet_name=None)
+        filtered = {name: df for name, df in sheets.items() if 'matrix' in str(name).lower() and 'table' in str(name).lower()}
+        return filtered if filtered else sheets
+
+
 def transform_input_to_master_df(
     input_path: Path | str,
     *,
@@ -119,8 +168,8 @@ def transform_input_to_master_df(
     if not input_path.exists():
         raise FileNotFoundError(f"Input Excel not found: {input_path}")
 
-    # Read all sheets and concatenate rows
-    sheets = pd.read_excel(input_path, sheet_name=None)
+    # Read only the 'Matrix Table' sheet (unhide if necessary)
+    sheets = _read_matrix_table_only(input_path)
     if not sheets:
         return pd.DataFrame(columns=MASTER_COLS)
 
@@ -236,6 +285,9 @@ def transform_input_to_master_df(
     for col in ['Term', 'Min_MWh', 'Max_MWh', 'Daily_No_Ruc', 'RUC_Nodal', 'Daily', 'Com_Disc', 'HOA_Disc', 'Broker_Fee', 'Meter_Fee', 'Max_Meters']:
         if col in dest.columns:
             dest[col] = pd.to_numeric(dest[col], errors='coerce')
+
+
+    return dest
 
 # --- SharePoint helpers (download master table with rename-on-exist) ---
 
